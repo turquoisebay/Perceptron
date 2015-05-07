@@ -1,6 +1,5 @@
 __author__ = 'Gene Chalfant'
 
-import time
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import style
@@ -8,42 +7,51 @@ from matplotlib import animation
 
 
 class Perceptron:
-    iterLimit = 5000     # Give up on convergence after this many iterations
+    """
+    Classic perceptron demonstrates the Perceptron Learning Algorithm.
+
+    Given a training dataset, model an unknown function.
+    """
     w = np.zeros(3)
     wList = []
 
     # Evaluate model hypothesis at input points and compare to training set
     def eval(self):
         error = []
-        h = self.compute()     # compute h(x)
+        h = self.compute(X)             # compute hypothesis on all input points
 
         # Build a vector of errors
+        if verbose:
+            print('y =', y, 'h =', h)
         for yval, hval in zip(y, h):
-            if verbose:
-                print('y =', yval, 'h =', hval)
             if yval == hval:        # Correct classification
                 error.append(0)
             elif yval > hval:
                 error.append(1)
             elif yval < hval:
                 error.append(-1)
+
         if verbose:
-            print("Eval =", 100.0*error.count(0)/datasetSize, '%')
+            print("Accuracy on training set =", 100.0*error.count(0)/datasetSize, '%')
         return error
 
     # Adjust weights
-    def updatew(self, e):
+    def updatew(self, mistakes):
         # Find index of a random incorrect (misclassified) value
-        m = np.random.choice([i for i, x in enumerate(e) if x != 0])
+        bad = np.random.choice([i for i, s in enumerate(mistakes) if s != 0])
+        if verbose:
+            print('Picking index ', bad, ' to reclassify')
 
-        self.w[0] += e[m]
-        self.w[1] += e[m] * X.dataset[m][1]
-        self.w[2] += e[m] * X.dataset[m][2]
+        self.w[0] += mistakes[bad]
+        self.w[1] += mistakes[bad] * X.dataset[bad][1]
+        self.w[2] += mistakes[bad] * X.dataset[bad][2]
+        if verbose:
+            print("Weights =", self.w)
 
     def learn(self):
         nIters = 0
         self.wList = []
-        for i in range(self.iterLimit):
+        for i in range(iterLimit):
             nIters += 1
             err = self.eval()
             if verbose:
@@ -57,11 +65,12 @@ class Perceptron:
             self.wList.append(((-1, 1), (-m+b, m+b)))
         return nIters, self.wList
 
-    # Compute h(X) = sign(W.X)
-    def compute(self):
+    # Compute h(X) = sign(W dot X)
+    # Takes an augmented dataset (x[0] = 1 for bias) as input
+    def compute(self, inputList):
         h = []
-        for x in X:
-            h.append(int(np.sign(np.dot(self.w, x))))
+        for point in inputList:
+            h.append(int(np.sign(np.dot(self.w, point))))
         return h
 
     # Compute plot line slope and y-intercept
@@ -72,43 +81,47 @@ class Perceptron:
 
 
 class Target:
-    def __init__(self):
-        self.point1 = randomXY()
-        self.point2 = randomXY()
-        self.m = (self.point2[1] - self.point1[1])/(self.point2[0] - self.point1[0])
-        self.b = self.point1[1] - self.m * self.point1[0]
-        if verbose:
-            print("Target function control points = ", self.point1, self.point2)
-            print("Slope =", self.m, ', y-int =', self.b)
+    """
+    Function to be modeled, unknown to the perceptron.
 
-    # Compute target function on one input
+    Used for synthesizing training data output values.
+    """
+    def __init__(self):
+        self.p1 = randomPt()
+        self.p2 = randomPt()
+        self.m = (self.p2[1] - self.p1[1])/(self.p2[0] - self.p1[0])
+        self.b = self.p1[1] - self.m * self.p1[0]
+        if verbose:
+            print("Target function control points = ", self.p1, self.p2)
+            print("slope =", self.m, ', y-int =', self.b)
+
+    # Compute target function on list of input data
     def compute(self, inputs):
-        f_x = []
+        results = []
         for (_, x1, x2) in inputs:
             yVal = self.m * x1 + self.b
             if x2 > yVal:
-                f_x.append(1)
+                results.append(1)
             else:
-                f_x.append(-1)
-        return f_x
+                results.append(-1)
+        return results
 
     def plotParams(self):
-        # control points to generate target function
-        x = [self.point1[0], self.point2[0]]
-        y = [self.point1[1], self.point2[1]]
-
-        # slope and y-intercept to generate plot line intercepts at margins
-        m = self.m
-        b = self.b
-        return x, y, m, b
+        # Reformat points to x-list and y-list for matplotlib
+        x = (self.p1[0], self.p2[0])
+        y = (self.p1[1], self.p2[1])
+        return x, y, self.m, self.b
 
 
 class Data:
+    """
+    Input data.
+    """
     # Synthesize random 2D + bias input and true output f(x)
     def __init__(self, N):
         self.dataset = []
         for _ in range(N):
-            x1, x2 = randomXY()
+            x1, x2 = randomPt()
             self.dataset.append((1, x1, x2))
         if verbose:
             print("Input data: ", self.dataset)
@@ -126,14 +139,17 @@ class Data:
 
 
 class Display:
+    """
+    Collection of static methods for plotting various elements of the visualization.
+    """
     @staticmethod
     def plotTarget():
-        x, y, m, b = f.plotParams()
-        ax.scatter(x, y, s=40, c='k')
-        ax.plot([-1, 1], [-m+b, m+b], lw=2, c='k')
+        p1, p2, m, b = f.plotParams()
+        ax.scatter(p1, p2, s=40, c='k')               # control points
+        ax.plot([-1, 1], [-m+b, m+b], lw=2, c='k')  # line of target function
 
     @staticmethod
-    def plotHypoth(ax):
+    def plotHypoth():
         m, b = p.plotParams()
         ax.plot([-1, 1], [-m+b, m+b], lw=2, c='cyan')
 
@@ -155,42 +171,60 @@ class Display:
         ax.scatter(x1_below, x2_below, s=30, c='r')
 
 
-# Return a random point in 2D space
-def randomXY():
+def randomPt():
+    """
+    Return a random 2D data point.
+    """
     return 2*np.random.random()-1, 2*np.random.random()-1
 
-# Project parameters
-nRuns = 10           # 1000 number of independent experiments
-datasetSize = 50    # 100 size of training dataset
-verbose = False     # Show diagnostics
-viz = True          # Show visualization
-if nRuns > 20:      # Just do stats
-    viz = False
+def computeAccuracy(sampSize, target, hypoth):
+    """
+    Calculate accuracy of the final hypothesis by randomly sampling the input space
+    and checking against the target function
+    """
+    sampList = []
+    for _ in range(sampSize):
+        x_1, x_2 = randomPt()
+        sampList.append((1, x_1, x_2))
+    f_x = target.compute(sampList)
+    g_x = hypoth.compute(sampList)
+    nCorrect = [f-g for f, g in zip(f_x, g_x)].count(0)
+    return 100*(nCorrect/sampSize)
 
-
+# Animation functions to pass to matplotlib
 def vizInit():
     line.set_data([], [])
     return line,
-
 
 def animate(i):
     line.set_data(hyp[i])
     return line,
 
+#####################################################################
+# Project parameters
+nRuns = 20            # 1000 number of independent experiments
+datasetSize = 100       # 100 size of training dataset
+iterLimit = 5000        # Give up on convergence after this many iterations
+verbose = False         # Show diagnostics
+viz = True              # Show visualization
+if nRuns > 20:          # Don't do too many plots, it's tedious
+    viz = False
+
 avgIterations = 0.0
-avgProbError = 0.0
+avgAccuracy = 0.0           # Probability that
 
 for run in range(nRuns):
     print(run+1, end=') ')
 
     f = Target()            # Begin with an unknown function
     X = Data(datasetSize)   # Synthesize input dataset
-    y = f.compute(X)        # Compute y=f(X) training set
+    y = f.compute(X)     # Compute y=f(X) training set
     p = Perceptron()        # Instantiate the model
 
-    n, hyp = p.learn()
+    nIterations, hyp = p.learn()      # Train the model
+
+    # After training, animate the progression of hypotheses
     if viz:
-        # Set up visualization
         style.use('ggplot')
         fig = plt.figure()
         ax = plt.axes(xlim=(-1, 1), ylim=(-1, 1))
@@ -198,33 +232,22 @@ for run in range(nRuns):
         plt.title('Perceptron Learning Algorithm')
         Display.plotTarget()
         Display.plotTrainingData(X, y)
-        Display.plotHypoth(ax)       # Plot the final hypothesis
+        Display.plotHypoth()       # Plot the final hypothesis
         fps = 45
         frameInt = 1000/fps
         anim = animation.FuncAnimation(
-            fig, animate, init_func=vizInit, frames=n-1,
+            fig, animate, init_func=vizInit, frames=nIterations-1,
             interval=frameInt, blit=True, repeat=False)
-    avgIterations += n
-    print(n, 'iterations')
+
+    print(nIterations, 'iterations to converge')
+    avgIterations += nIterations
+    accuracyThisRun = computeAccuracy(20000, f, p)
+    print('Run accuracy =', format(accuracyThisRun, '6.3f'))
+    avgAccuracy += accuracyThisRun
     plt.show()
 
-# Compute stats across entire experiment
+# Average statistics across all runs
 avgIterations /= nRuns
 print('Average number of iterations to converge =', avgIterations)
-
-# Then use the Perceptron Learning Algorithm to find the model hypothesis
-# e = Experiment()
-# for run in range(nRuns):
-#     if verbosity > 0:
-#         print("Test Run ", run)
-#     e.run()
-#     plt.show()
-
-# average_iterations += perceptron.run()
-# average_probability_of_error += perceptron.probability_of_error
-
-# average_iterations /= RUNS
-# average_probability_of_error = 1.0 - (average_probability_of_error / RUNS)
-#
-# print("On average it takes ", average_iterations, " to converge.\n")
-# print("Average probability of error: ", average_probability_of_error)
+avgAccuracy /= nRuns
+print('Average hypothesis accuracy =', avgAccuracy)
